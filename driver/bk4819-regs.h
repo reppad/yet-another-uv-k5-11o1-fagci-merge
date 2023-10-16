@@ -17,6 +17,17 @@
 #ifndef BK4819_REGS_H
 #define BK4819_REGS_H
 
+typedef struct RegisterSpec {
+	const char *name;
+	uint8_t num;
+	uint8_t offset;
+	uint16_t mask;
+	uint16_t inc;
+} RegisterSpec;
+
+static const RegisterSpec afcDisableRegSpec = {"AFC Disable", 0x73, 4, 1, 1};
+static const RegisterSpec afDacGainRegSpec = {"AF DAC Gain", 0x48, 0, 0xF, 1};
+
 enum bk4819_gpio_pin_e {
  BK4819_GPIO0_PIN28_RX_ENABLE = 0,
  BK4819_GPIO1_PIN29_PA_ENABLE = 1,

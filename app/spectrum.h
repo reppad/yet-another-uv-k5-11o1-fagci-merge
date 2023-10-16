@@ -48,9 +48,9 @@
 static const uint8_t DrawingEndY = 40;
 
 static const uint8_t gStepSettingToIndex[] = {
-    [STEP_2_5kHz] = 4,  [STEP_5_0kHz] = 5,  [STEP_6_25kHz] = 6,
-    [STEP_10_0kHz] = 8, [STEP_12_5kHz] = 9, [STEP_25_0kHz] = 10,
-    [STEP_8_33kHz] = 7,
+    [STEP_2_5kHz] = 0,  [STEP_5_0kHz] = 1,  [STEP_6_25kHz] = 2,
+    [STEP_10_0kHz] = 3, [STEP_12_5kHz] = 4, [STEP_25_0kHz] = 5,
+    [STEP_8_33kHz] = 6,
 };
 
 typedef enum State {
@@ -66,7 +66,7 @@ typedef enum StepsCount {
   STEPS_16,
 } StepsCount;
 
-typedef STEP_Setting_t ScanStep;
+typedef step_setting_t ScanStep;
 
 typedef struct SpectrumSettings {
   StepsCount stepsCount;
@@ -75,14 +75,14 @@ typedef struct SpectrumSettings {
   uint16_t rssiTriggerLevel;
 
   bool backlightState;
-  BK4819_FilterBandwidth_t listenBw;
+  BK4819_filter_bandwidth_t listenBw;
   ModulationType modulationType;
   uint16_t delayUS;
 } SpectrumSettings;
 
 typedef struct KeyboardState {
-  KEY_Code_t current;
-  KEY_Code_t prev;
+  key_code_t current;
+  key_code_t prev;
   uint8_t counter;
 } KeyboardState;
 
@@ -116,31 +116,31 @@ typedef struct FreqPreset {
   StepsCount stepsCountIndex;
   uint8_t stepSizeIndex;
   ModulationType modulationType;
-  BK4819_FilterBandwidth_t listenBW;
+  BK4819_filter_bandwidth_t listenBW;
 } FreqPreset;
 
 static const FreqPreset freqPresets[] = {
     {"16m Broadcast", 1748000, 1790000, STEPS_128, STEP_5_0kHz, MOD_AM,
      BK4819_FILTER_BW_NARROW},
-    {"17m Ham Band", 1806800, 1816800, STEPS_128, STEP_1_0kHz, MOD_USB,
+    {"17m Ham Band", 1806800, 1816800, STEPS_128, STEP_1kHz, MOD_USB,
      BK4819_FILTER_BW_NARROWER},
     {"15m Broadcast", 1890000, 1902000, STEPS_128, STEP_5_0kHz, MOD_AM,
      BK4819_FILTER_BW_NARROW},
-    {"15m Ham Band", 2100000, 2144990, STEPS_128, STEP_1_0kHz, MOD_USB,
+    {"15m Ham Band", 2100000, 2144990, STEPS_128, STEP_1kHz, MOD_USB,
      BK4819_FILTER_BW_NARROWER},
     {"13m Broadcast", 2145000, 2185000, STEPS_128, STEP_5_0kHz, MOD_AM,
      BK4819_FILTER_BW_NARROW},
-    {"12m Ham Band", 2489000, 2499000, STEPS_128, STEP_1_0kHz, MOD_USB,
+    {"12m Ham Band", 2489000, 2499000, STEPS_128, STEP_1kHz, MOD_USB,
      BK4819_FILTER_BW_NARROWER},
     {"11m Broadcast", 2567000, 2610000, STEPS_128, STEP_5_0kHz, MOD_AM,
      BK4819_FILTER_BW_NARROW},
     {"CB", 2697500, 2799990, STEPS_128, STEP_5_0kHz, MOD_FM,
      BK4819_FILTER_BW_NARROW},
-    {"10m Ham Band", 2800000, 2970000, STEPS_128, STEP_1_0kHz, MOD_USB,
+    {"10m Ham Band", 2800000, 2970000, STEPS_128, STEP_1kHz, MOD_USB,
      BK4819_FILTER_BW_NARROWER},
-    {"6m Ham Band", 5000000, 5400000, STEPS_128, STEP_1_0kHz, MOD_USB,
+    {"6m Ham Band", 5000000, 5400000, STEPS_128, STEP_1kHz, MOD_USB,
      BK4819_FILTER_BW_NARROWER},
-    {"Air Band Voice", 11800000, 13500000, STEPS_128, STEP_100_0kHz, MOD_AM,
+    {"Air Band Voice", 11800000, 13500000, STEPS_128, STEP_100kHz, MOD_AM,
      BK4819_FILTER_BW_NARROW},
     {"2m Ham Band", 14400000, 14800000, STEPS_128, STEP_25_0kHz, MOD_FM,
      BK4819_FILTER_BW_WIDE},
@@ -162,11 +162,11 @@ static const FreqPreset freqPresets[] = {
      BK4819_FILTER_BW_NARROW},
     {"FRS/GMRS 467", 46756250, 46771250, STEPS_16, STEP_12_5kHz, MOD_FM,
      BK4819_FILTER_BW_NARROW},
-    {"LoRa WAN", 86400000, 86900000, STEPS_128, STEP_100_0kHz, MOD_FM,
+    {"LoRa WAN", 86400000, 86900000, STEPS_128, STEP_100kHz, MOD_FM,
      BK4819_FILTER_BW_WIDE},
-    {"GSM900 UP", 89000000, 91500000, STEPS_128, STEP_100_0kHz, MOD_FM,
+    {"GSM900 UP", 89000000, 91500000, STEPS_128, STEP_100kHz, MOD_FM,
      BK4819_FILTER_BW_WIDE},
-    {"GSM900 DOWN", 93500000, 96000000, STEPS_128, STEP_100_0kHz, MOD_FM,
+    {"GSM900 DOWN", 93500000, 96000000, STEPS_128, STEP_100kHz, MOD_FM,
      BK4819_FILTER_BW_WIDE},
     {"23cm Ham Band", 124000000, 130000000, STEPS_128, STEP_25_0kHz, MOD_FM,
      BK4819_FILTER_BW_WIDE},

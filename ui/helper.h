@@ -34,5 +34,9 @@ void UI_DisplayFrequency(const char *pDigits, uint8_t X, uint8_t Y, bool bDispla
 void UI_DisplayFrequencySmall(const char *pDigits, uint8_t X, uint8_t Y, bool bDisplayLeadingZero);
 void UI_Displaysmall_digits(const uint8_t size, const char *str, const uint8_t x, const uint8_t y, const bool display_leading_zeros);
 
+void PutPixel(const unsigned int x, const unsigned int y, const bool fill);
+void PutPixelStatus(const unsigned int x, const unsigned int y, bool fill);
+void DrawHLine(int sy, int ey, int nx, bool fill);
+
 #endif
 

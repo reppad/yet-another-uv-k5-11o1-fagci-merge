@@ -333,3 +333,11 @@ void UI_Displaysmall_digits(const uint8_t size, const char *str, const uint8_t x
 		}
 	}
 }
+
+void DrawHLine(int sy, int ey, int nx, bool fill) {
+    for (int i = sy; i <= ey; i++) {
+        if (i < 56 && nx < 128) {
+            PutPixel(nx, i, fill);
+        }
+    }
+}

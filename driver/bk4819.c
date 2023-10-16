@@ -351,13 +351,13 @@ void BK4819_DisableAGC(void)
 		//
 		// <2:0> 0b110 DC Filter Band Width for Rx (IF In).
 		// 000=Bypass DC filter;
-	
+
 		BK4819_WriteRegister(0x7E,
 			(0u << 15) |      // 0  AGC fix mode
 			(3u << 12) |      // 3  AGC fix index
 			(5u <<  3) |      // 5  DC Filter band width for Tx (MIC In)
 			(6u <<  0));      // 6  DC Filter band width for Rx (I.F In)
-	
+
 		// TBR: fagci has this listed as two values, agc_rssi and lna_peak_rssi
 		// This is why AGC appeared to do nothing as-is for Rx
 		//
@@ -369,17 +369,17 @@ void BK4819_DisableAGC(void)
 		//
 		// TBR: Using S9+30 (173) and S9 (143) as suggested values
 		BK4819_WriteRegister(0x62, (173u << 8) | (143u << 0));
-	
+
 		// AGC auto-adjusts the following LNA values, no need to set them ourselves
 		//BK4819_WriteRegister(0x13, (3u << 8) | (5u << 5) | (3u << 3) | (6u << 0));  // 000000 11 101 11 110
 		//BK4819_WriteRegister(0x12, 0x037B);  // 000000 11 011 11 011
 		//BK4819_WriteRegister(0x11, 0x027B);  // 000000 10 011 11 011
 		//BK4819_WriteRegister(0x10, 0x007A);  // 000000 00 011 11 010
 		//BK4819_WriteRegister(0x14, 0x0019);  // 000000 00 000 11 001
-	
+
 		BK4819_WriteRegister(0x49, 0x2A38);
 		BK4819_WriteRegister(0x7B, 0x8420);
-	
+
 		for (unsigned int i = 0; i < 8; i++)
 			BK4819_WriteRegister(0x06, ((i & 7u) << 13) | (0x4A << 7) | (0x36 << 0));
 	}
@@ -580,6 +580,12 @@ void BK4819_EnableVox(uint16_t VoxEnableThreshold, uint16_t VoxDisableThreshold)
 	BK4819_WriteRegister(0x31, REG_31_Value | (1u << 2));    // VOX Enable
 }
 
+const uint16_t listenBWRegValues[3] = {
+		0x3028, // 25
+		0x4048, // 12.5
+		0x205C, // 6.25
+};
+
 void BK4819_set_TX_deviation(const bool narrow)
 {
 	const uint8_t scrambler = (BK4819_ReadRegister(0x31) >> 1) & 1u;
@@ -642,7 +648,7 @@ void BK4819_SetFilterBandwidth(const BK4819_filter_bandwidth_t Bandwidth, const 
 	uint16_t val;
 
 	m_bandwidth = Bandwidth;
-	
+
 	switch (Bandwidth)
 	{
 		default:
@@ -876,6 +882,25 @@ void BK4819_SetAF(BK4819_af_type_t AF)
 	//
 //	BK4819_WriteRegister(0x47, 0x6040 | (AF << 8));
 	BK4819_WriteRegister(0x47, (6u << 12) | (AF << 8) | (1u << 6));
+}
+
+uint16_t BK4819_GetRegValue(RegisterSpec s) {
+    return (BK4819_ReadRegister(s.num) >> s.offset) & s.mask;
+}
+
+void BK4819_SetRegValue(RegisterSpec s, uint16_t v) {
+    uint16_t reg = BK4819_ReadRegister(s.num);
+    reg &= ~(s.mask << s.offset);
+    BK4819_WriteRegister(s.num, reg | (v << s.offset));
+}
+
+void BK4819_SetModulation(ModulationType type) {
+    const uint8_t modTypeReg47Values[] = {1, 7, 5};
+
+    BK4819_SetAF(modTypeReg47Values[type]);
+    BK4819_SetRegValue(afDacGainRegSpec, 0xF);
+    BK4819_WriteRegister(0x3D, type == MOD_USB ? 0 : 0x2AAB);
+    BK4819_SetRegValue(afcDisableRegSpec, type != MOD_FM);
 }
 
 void BK4819_RX_TurnOn(void)
@@ -2189,11 +2214,11 @@ void BK4819_reset_fsk(void)
 			{	// packet size .. sync + 14 bytes - size of a single mdc1200 packet
 //				uint16_t size = 1 + (MDC1200_FEC_K * 2);
 				uint16_t size = 0 + (MDC1200_FEC_K * 2);
-//				size -= (fsk_reg59 & (1u << 3)) ? 4 : 2; 
+//				size -= (fsk_reg59 & (1u << 3)) ? 4 : 2;
 				size = ((size + 1) / 2) * 2;             // round up to even, else FSK RX doesn't work
 				BK4819_WriteRegister(0x5D, ((size - 1) << 8));
 			}
-	
+
 			// clear FIFO's then enable RX
 			BK4819_WriteRegister(0x59, (1u << 15) | (1u << 14) | fsk_reg59);
 			BK4819_WriteRegister(0x59, (1u << 12) | fsk_reg59);
@@ -2270,7 +2295,7 @@ void BK4819_reset_fsk(void)
 			//BK4819_WriteRegister(0x40, (3u << 12) | (deviation & 0xfff));
 			BK4819_WriteRegister(0x40, (dev_val & 0xf000) | (deviation & 0xfff));
 		}
-		
+
 		// REG_2B   0
 		//
 		// <10>     0 AF RX HPF 300Hz filter     0 = enable 1 = disable
@@ -2287,7 +2312,7 @@ void BK4819_reset_fsk(void)
 
 		// *******************************************
 		// setup the FFSK modem as best we can for MDC1200
-		
+
 		// MDC1200 uses 1200/1800 Hz FSK tone frequencies 1200 bits/s
 		//
 		BK4819_WriteRegister(0x58, // 0x37C3);   // 001 101 11 11 00 001 1
@@ -2544,4 +2569,32 @@ void BK4819_PlayDTMFEx(bool bLocalLoopback, char Code)
 	SYSTEM_DelayMs(50);
 	BK4819_PlayDTMF(Code);
 	BK4819_ExitTxMute();
+}
+
+void BK4819_ToggleAFBit(bool on) {
+    uint16_t reg = BK4819_ReadRegister(0x47U);
+    reg &= ~(1 << 8);
+    if (on)
+        reg |= on << 8;
+    BK4819_WriteRegister(0x47U, reg);
+}
+
+void BK4819_ToggleAFDAC(bool on) {
+    uint32_t Reg = BK4819_ReadRegister(0x30U);
+    Reg &= ~(1 << 9);
+    if (on)
+        Reg |= (1 << 9);
+    BK4819_WriteRegister(0x30U, Reg);
+}
+
+void BK4819_TuneTo(uint32_t f, bool precise) {
+	BK4819_set_rf_filter_path(f);
+	BK4819_set_rf_frequency(f, false);
+	uint16_t reg = BK4819_ReadRegister(0x30U);
+	if (precise) {
+		BK4819_WriteRegister(0x30U, 0);
+	} else {
+		BK4819_WriteRegister(0x30U, reg & ~BK4819_REG_30_ENABLE_VCO_CALIB);
+	}
+	BK4819_WriteRegister(0x30U, reg);
 }
