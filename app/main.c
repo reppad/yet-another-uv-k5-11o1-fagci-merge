@@ -24,8 +24,8 @@
 #include "app/generic.h"
 #include "app/main.h"
 #include "app/search.h"
-#ifdef ENABLE_SPECTRUM
-//	#include "app/spectrum.h"
+#ifdef ENABLE_PANADAPTER
+    #include "app/spectrum.h"
 #endif
 #include "audio.h"
 #include "board.h"
@@ -52,7 +52,7 @@ bool scanning_paused(void)
 	{	// scanning isn't paused
 		return false;
 	}
-	
+
 	return true;
 }
 
@@ -357,7 +357,10 @@ void processFKeyFunction(const key_code_t Key)
 				}
 				g_request_save_vfo   = true;
 				g_vfo_configure_mode = VFO_CONFIGURE_RELOAD;
-
+            #elif defined(ENABLE_PANADAPTER)
+                g_current_function = 0;
+                APP_RunSpectrum();
+                g_request_display_screen = DISPLAY_MAIN;
 			#else
 				#ifdef ENABLE_VOX
 					toggle_chan_scanlist();

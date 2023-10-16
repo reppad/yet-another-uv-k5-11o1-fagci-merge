@@ -18,8 +18,8 @@
 #include "finput.h"
 #include <string.h>
 
-#define F_MIN FrequencyBandTable[0].lower
-#define F_MAX FrequencyBandTable[ARRAY_SIZE(FrequencyBandTable) - 1].upper
+#define F_MIN FREQ_BAND_TABLE[0].lower
+#define F_MAX FREQ_BAND_TABLE[ARRAY_SIZE(FREQ_BAND_TABLE) - 1].upper
 
 const uint16_t RSSI_MAX_VALUE = 65535;
 
@@ -44,6 +44,9 @@ KeyboardState kbd = {KEY_INVALID, KEY_INVALID, 0};
 
 const char *bwOptions[] = {"  25k", "12.5k", "6.25k"};
 const uint8_t modulationTypeTuneSteps[] = {100, 50, 10};
+const char *vfoStateNames[] = {
+		"NORMAL", "BUSY", "BAT LOW", "DISABLE", "TIMEOUT", "ALARM", "VOL HIGH",
+};
 
 SpectrumSettings settings = {
     .stepsCount = STEPS_64,
@@ -94,7 +97,7 @@ uint16_t batteryUpdateTimer = 0;
 bool isMovingInitialized = false;
 uint8_t lastStepsCount = 0;
 
-VfoState_t txAllowState;
+vfo_state_t txAllowState;
 
 static void UpdateRegMenuValue(RegisterSpec s, bool add) {
   uint16_t v = BK4819_GetRegValue(s);
@@ -111,8 +114,8 @@ static void UpdateRegMenuValue(RegisterSpec s, bool add) {
 
 // Utility functions
 
-KEY_Code_t GetKey() {
-  KEY_Code_t btn = KEYBOARD_Poll();
+key_code_t GetKey() {
+  key_code_t btn = KEYBOARD_Poll();
   if (btn == KEY_INVALID && !GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT)) {
     btn = KEY_PTT;
   }
@@ -156,9 +159,9 @@ static void ResetPeak() {
   peak.rssi = 0;
 }
 
-bool IsCenterMode() { return settings.scanStepIndex < STEP_1_0kHz; }
+bool IsCenterMode() { return (settings.scanStepIndex >= STEP_10Hz && settings.scanStepIndex < STEP_1kHz); }
 uint8_t GetStepsCount() { return 128 >> settings.stepsCount; }
-uint16_t GetScanStep() { return StepFrequencyTable[settings.scanStepIndex]; }
+uint16_t GetScanStep() { return STEP_FREQ_TABLE[settings.scanStepIndex]; }
 uint32_t GetBW() { return GetStepsCount() * GetScanStep(); }
 uint32_t GetFStart() {
   return IsCenterMode() ? currentFreq - (GetBW() >> 1) : currentFreq;
@@ -238,11 +241,11 @@ uint16_t GetBWRegValueForListen() {
 
 // Needed to cleanup RSSI if we're hurry (< 10ms)
 static void ResetRSSI() {
-  uint32_t Reg = BK4819_ReadRegister(BK4819_REG_30);
+  uint32_t Reg = BK4819_ReadRegister(0x30U);
   Reg &= ~1;
-  BK4819_WriteRegister(BK4819_REG_30, Reg);
+  BK4819_WriteRegister(0x30U, Reg);
   Reg |= 1;
-  BK4819_WriteRegister(BK4819_REG_30, Reg);
+  BK4819_WriteRegister(0x30U, Reg);
 }
 
 uint16_t GetRssi() {
@@ -253,11 +256,27 @@ uint16_t GetRssi() {
   return BK4819_GetRSSI();
 }
 
+uint32_t GetOffsetedF(vfo_info_t *pInfo, uint32_t f) {
+	switch (pInfo->tx_offset_freq_dir) {
+		case TX_OFFSET_FREQ_DIR_OFF:
+			break;
+		case TX_OFFSET_FREQ_DIR_ADD:
+			f += pInfo->tx_offset_freq;
+			break;
+		case TX_OFFSET_FREQ_DIR_SUB:
+			f -= pInfo->tx_offset_freq;
+			break;
+	}
+
+	return Clamp(f, FREQ_BAND_TABLE[0].lower,
+				 FREQ_BAND_TABLE[ARRAY_SIZE(FREQ_BAND_TABLE) - 1].upper);
+}
+
 static void ToggleAudio(bool on) {
   if (on) {
-    GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_AUDIO_PATH);
+    GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
   } else {
-    GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_AUDIO_PATH);
+    GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
   }
 }
 
@@ -275,7 +294,7 @@ static void ToggleRX(bool on) {
     ToggleTX(false);
   }
 
-  BK4819_ToggleGpioOut(BK4819_GPIO0_PIN28_GREEN, on);
+  BK4819_set_GPIO_pin(BK4819_GPIO6_PIN2_GREEN, on);
   BK4819_RX_TurnOn();
 
   ToggleAudio(on);
@@ -314,43 +333,43 @@ static void ToggleTX(bool on) {
     ToggleRX(false);
   }
 
-  BK4819_ToggleGpioOut(BK4819_GPIO1_PIN29_RED, on);
+  BK4819_set_GPIO_pin(BK4819_GPIO5_PIN1_RED, on);
 
   if (on) {
     ToggleAudio(false);
 
-    SetTxF(GetOffsetedF(gCurrentVfo, fMeasure));
+    SetTxF(GetOffsetedF(g_current_vfo, fMeasure));
 
-    RegBackupSet(BK4819_REG_47, 0x6040);
-    RegBackupSet(BK4819_REG_7E, 0x302E);
-    RegBackupSet(BK4819_REG_50, 0x3B20);
-    RegBackupSet(BK4819_REG_37, 0x1D0F);
-    RegBackupSet(BK4819_REG_52, 0x028F);
-    RegBackupSet(BK4819_REG_30, 0x0000);
-    BK4819_WriteRegister(BK4819_REG_30, 0xC1FE);
-    RegBackupSet(BK4819_REG_51, 0x0000);
+    RegBackupSet(0x47U, 0x6040);
+    RegBackupSet(0x7EU, 0x302E);
+    RegBackupSet(0x50U, 0x3B20);
+    RegBackupSet(0x37U, 0x1D0F);
+    RegBackupSet(0x52U, 0x028F);
+    RegBackupSet(0x30U, 0x0000);
+    BK4819_WriteRegister(0x30U, 0xC1FE);
+    RegBackupSet(0x51U, 0x0000);
 
-    BK4819_SetupPowerAmplifier(gCurrentVfo->TXP_CalculatedSetting,
-                               gCurrentVfo->pTX->Frequency);
+    BK4819_SetupPowerAmplifier(g_current_vfo->txp_calculated_setting,
+                               g_current_vfo->p_tx->frequency);
   } else {
-    RADIO_SendEndOfTransmission();
+    RADIO_tx_eot();
     RADIO_EnableCxCSS();
 
     BK4819_SetupPowerAmplifier(0, 0);
 
-    RegRestore(BK4819_REG_51);
-    BK4819_WriteRegister(BK4819_REG_30, 0);
-    RegRestore(BK4819_REG_30);
-    RegRestore(BK4819_REG_52);
-    RegRestore(BK4819_REG_37);
-    RegRestore(BK4819_REG_50);
-    RegRestore(BK4819_REG_7E);
-    RegRestore(BK4819_REG_47);
+    RegRestore(0x51U);
+    BK4819_WriteRegister(0x30U, 0);
+    RegRestore(0x30U);
+    RegRestore(0x52U);
+    RegRestore(0x37U);
+    RegRestore(0x50U);
+    RegRestore(0x7EU);
+    RegRestore(0x47U);
 
     SetF(fMeasure, true);
   }
-  BK4819_ToggleGpioOut(BK4819_GPIO6_PIN2, !on);
-  BK4819_ToggleGpioOut(BK4819_GPIO5_PIN1, on);
+  BK4819_set_GPIO_pin(BK4819_GPIO0_PIN28_RX_ENABLE, !on);
+  BK4819_set_GPIO_pin(BK4819_GPIO1_PIN29_PA_ENABLE, on);
 }
 
 // Scan info
@@ -476,7 +495,7 @@ static void SelectNearestPreset(bool inc) {
 }
 
 static void UpdateScanStep(bool inc) {
-  if (inc && settings.scanStepIndex < STEP_100_0kHz) {
+  if (inc && settings.scanStepIndex < STEP_100kHz) {
     settings.scanStepIndex++;
   } else if (!inc && settings.scanStepIndex > 0) {
     settings.scanStepIndex--;
@@ -597,15 +616,15 @@ static void DrawSpectrum() {
 
 static void UpdateBatteryInfo() {
   for (uint8_t i = 0; i < 4; i++) {
-    BOARD_ADC_GetBatteryInfo(&gBatteryVoltages[i], &gBatteryCurrent);
+    BOARD_ADC_GetBatteryInfo(&g_battery_voltages[i], &g_usb_current);
   }
 
-  uint16_t voltage = Mid(gBatteryVoltages, ARRAY_SIZE(gBatteryVoltages));
-  gBatteryDisplayLevel = 0;
+  uint16_t voltage = Mid(g_battery_voltages, ARRAY_SIZE(g_battery_voltages));
+  g_battery_display_level = 0;
 
-  for (int i = ARRAY_SIZE(gBatteryCalibration) - 1; i >= 0; --i) {
-    if (gBatteryCalibration[i] < voltage) {
-      gBatteryDisplayLevel = i + 1;
+  for (int i = ARRAY_SIZE(g_battery_calibration) - 1; i >= 0; --i) {
+    if (g_battery_calibration[i] < voltage) {
+        g_battery_display_level = i + 1;
       break;
     }
   }
@@ -640,7 +659,18 @@ static void DrawStatus() {
   }
 #endif
 
-  UI_DisplayBattery(gBatteryDisplayLevel);
+  // UI_DisplayBattery(g_battery_display_level);
+  g_status_line[115] |= 0b000001110;
+  g_status_line[115 + 1] |= 0b000011111;
+  g_status_line[127] |= 0b000011111;
+  g_battery_display_level <<= 1;
+  for (uint8_t i = 1; i <= 10; ++i) {
+    if (g_battery_display_level >= i) {
+      g_status_line[127 - i] |= 0b000011111;
+    } else {
+      g_status_line[127 - i] |= 0b000010001;
+    }
+  }
 }
 
 static void DrawF(uint32_t f) {
@@ -667,7 +697,7 @@ static void DrawF(uint32_t f) {
     if (txAllowState) {
       sprintf(String, vfoStateNames[txAllowState]);
     } else if (isTransmitting) {
-      f = GetOffsetedF(gCurrentVfo, f);
+      f = GetOffsetedF(g_current_vfo, f);
       sprintf(String, "TX %u.%05u", f / 100000, f % 100000);
     }
   }
@@ -718,25 +748,25 @@ static void DrawTicks() {
     (f % 50000) < step && (barValue |= 0b00000100);
     (f % 100000) < step && (barValue |= 0b00011000);
 
-    gFrameBuffer[5][x] |= barValue;
+    g_frame_buffer[5][x] |= barValue;
   }
 
   // center
   if (IsCenterMode()) {
-    gFrameBuffer[5][62] = 0x80;
-    gFrameBuffer[5][63] = 0x80;
-    gFrameBuffer[5][64] = 0xff;
-    gFrameBuffer[5][65] = 0x80;
-    gFrameBuffer[5][66] = 0x80;
+    g_frame_buffer[5][62] = 0x80;
+    g_frame_buffer[5][63] = 0x80;
+    g_frame_buffer[5][64] = 0xff;
+    g_frame_buffer[5][65] = 0x80;
+    g_frame_buffer[5][66] = 0x80;
   } else {
-    gFrameBuffer[5][0] = 0xff;
-    gFrameBuffer[5][1] = 0x80;
-    gFrameBuffer[5][2] = 0x80;
-    gFrameBuffer[5][3] = 0x80;
-    gFrameBuffer[5][124] = 0x80;
-    gFrameBuffer[5][125] = 0x80;
-    gFrameBuffer[5][126] = 0x80;
-    gFrameBuffer[5][127] = 0xff;
+    g_frame_buffer[5][0] = 0xff;
+    g_frame_buffer[5][1] = 0x80;
+    g_frame_buffer[5][2] = 0x80;
+    g_frame_buffer[5][3] = 0x80;
+    g_frame_buffer[5][124] = 0x80;
+    g_frame_buffer[5][125] = 0x80;
+    g_frame_buffer[5][126] = 0x80;
+    g_frame_buffer[5][127] = 0xff;
   }
 }
 
@@ -745,7 +775,7 @@ static void DrawArrow(uint8_t x) {
     signed v = x + i;
     uint8_t a = i > 0 ? i : -i;
     if (!(v & LCD_WIDTH)) {
-      gFrameBuffer[5][v] |= (0b01111000 << a) & 0b01111000;
+	  g_frame_buffer[5][v] |= (0b01111000 << a) & 0b01111000;
     }
   }
 }
@@ -937,7 +967,7 @@ static void OnKeyDownFreqInput(uint8_t key) {
   SYSTEM_DelayMs(90);
 }
 
-void OnKeyDownStill(KEY_Code_t key) {
+void OnKeyDownStill(key_code_t key) {
   switch (key) {
 #ifdef ENABLE_ALL_REGISTERS
   case KEY_2:
@@ -1013,9 +1043,9 @@ void OnKeyDownStill(KEY_Code_t key) {
   case KEY_PTT:
     // start transmit
     UpdateBatteryInfo();
-    if (gBatteryDisplayLevel == 6) {
-      txAllowState = VFO_STATE_VOL_HIGH;
-    } else if (IsTXAllowed(GetOffsetedF(gCurrentVfo, fMeasure))) {
+    if (g_battery_display_level == 6) {
+      txAllowState = VFO_STATE_VOLTAGE_HIGH;
+    } else if (FREQUENCY_tx_freq_check(GetOffsetedF(g_current_vfo, fMeasure)) == 0) {
       txAllowState = VFO_STATE_NORMAL;
       ToggleTX(true);
     } else {
@@ -1062,11 +1092,11 @@ static void OnKeysReleased() {
 }
 
 static void RenderFreqInput() {
-  UI_PrintString(freqInputString, 2, 127, 0, 8, true);
+  UI_PrintString(freqInputString, 2, 127, 0, 8);
 }
 
 static void RenderStatus() {
-  memset(gStatusLine, 0, sizeof(gStatusLine));
+  memset(g_status_line, 0, sizeof(g_status_line));
   DrawStatus();
   ST7565_BlitStatusLine();
 }
@@ -1084,7 +1114,7 @@ static void RenderStill() {
   DrawF(fMeasure);
 
   const uint8_t METER_PAD_LEFT = 3;
-  uint8_t *ln = gFrameBuffer[2];
+  uint8_t *ln = g_frame_buffer[2];
 
   for (uint8_t i = 0; i < 121; i++) {
     ln[i + METER_PAD_LEFT] = i % 10 ? 0b01000000 : 0b11000000;
@@ -1112,7 +1142,7 @@ static void RenderStill() {
     uint8_t afDB = BK4819_ReadRegister(0x6F) & 0b1111111;
     uint8_t afPX = ConvertDomain(afDB, 26, 194, 0, 121);
     for (uint8_t i = 0; i < afPX; ++i) {
-      gFrameBuffer[3][i + METER_PAD_LEFT] |= 0b00000011;
+      g_frame_buffer[3][i + METER_PAD_LEFT] |= 0b00000011;
     }
   }
 
@@ -1142,7 +1172,7 @@ static void RenderStill() {
     uint8_t offset = PAD_LEFT;
     uint8_t row = 3;
 
-    for (int i = 0, idx = 1; idx < ARRAY_SIZE(registerSpecs); ++i, ++idx) {
+    for (unsigned int i = 0, idx = 1; idx < ARRAY_SIZE(registerSpecs); ++i, ++idx) {
       if (idx == 5) {
         row += 2;
         i = 0;
@@ -1150,8 +1180,8 @@ static void RenderStill() {
       offset = PAD_LEFT + i * CELL_WIDTH;
       if (menuState == idx) {
         for (int j = 0; j < CELL_WIDTH; ++j) {
-          gFrameBuffer[row][j + offset] = 0xFF;
-          gFrameBuffer[row + 1][j + offset] = 0xFF;
+          g_frame_buffer[row][j + offset] = 0xFF;
+          g_frame_buffer[row + 1][j + offset] = 0xFF;
         }
       }
       RegisterSpec s = registerSpecs[idx];
@@ -1168,7 +1198,7 @@ static void RenderStill() {
 }
 
 static void Render() {
-  memset(gFrameBuffer, 0, sizeof(gFrameBuffer));
+  memset(g_frame_buffer, 0, sizeof(g_frame_buffer));
 
   switch (currentState) {
   case SPECTRUM:
@@ -1372,13 +1402,13 @@ void APP_RunSpectrum() {
   // AM_fix_init();
 
   // TX here coz it always? set to active VFO
-  VFO_Info_t vfo = gEeprom.VfoInfo[gEeprom.TX_CHANNEL];
-  initialFreq = vfo.pRX->Frequency;
+  vfo_info_t vfo = g_eeprom.vfo_info[g_eeprom.tx_vfo];
+  initialFreq = vfo.p_rx->frequency;
   currentFreq = initialFreq;
-  settings.scanStepIndex = gStepSettingToIndex[vfo.STEP_SETTING];
-  settings.listenBw = vfo.CHANNEL_BANDWIDTH == BANDWIDTH_WIDE
-                          ? BANDWIDTH_WIDE
-                          : BANDWIDTH_NARROW;
+  settings.scanStepIndex = gStepSettingToIndex[vfo.step_setting];
+  settings.listenBw = vfo.channel_bandwidth == (uint8_t) BANDWIDTH_WIDE
+                          ? (uint8_t) BANDWIDTH_WIDE
+                          : (uint8_t) BANDWIDTH_NARROW;
   settings.modulationType = vfo.ModulationType;
 
   AutomaticPresetChoose(currentFreq);
@@ -1392,7 +1422,7 @@ void APP_RunSpectrum() {
 
   RelaunchScan();
 
-  memset(rssiHistory, 0, 128);
+  memset(rssiHistory, 0, sizeof(rssiHistory));
 
   isInitialized = true;
 

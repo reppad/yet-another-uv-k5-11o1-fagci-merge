@@ -137,7 +137,7 @@ void UI_PrintStringSmall(const char *str, const unsigned int start, const unsign
 	}
 #endif
 
-#ifdef ENABLE_SMALLEST_FONT
+#if defined(ENABLE_SMALLEST_FONT) || defined(ENABLE_PANADAPTER)
 
 void PutPixel(const unsigned int x, const unsigned int y, const bool fill)
 {
@@ -330,4 +330,12 @@ void UI_Displaysmall_digits(const uint8_t size, const char *str, const uint8_t x
 			xx += spacing;
 		}
 	}
+}
+
+void DrawHLine(int sy, int ey, int nx, bool fill) {
+    for (int i = sy; i <= ey; i++) {
+        if (i < 56 && nx < 128) {
+            PutPixel(nx, i, fill);
+        }
+    }
 }

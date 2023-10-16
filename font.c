@@ -578,7 +578,7 @@ const uint8_t g_font_small_4x5[95][4] =
 };
 */
 
-#ifdef ENABLE_SMALLEST_FONT
+#if defined(ENABLE_SMALLEST_FONT) || defined(ENABLE_PANADAPTER)
 const uint8_t g_font3x5[160][3] =
 {
 	{0x00, 0x00, 0x00}, //  32 - space

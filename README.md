@@ -1,3 +1,23 @@
+### About this fork 
+This repository is a fork of [OneOfEleven custom OEFW](https://github.com/OneOfEleven/uv-k5-firmware-custom/) in which I have integrated the spectrum app from [Fagci's OSFW](https://github.com/fagci/uv-k5-firmware-fagci-mod/).  
+There are no other additions.
+
+Some options cannot be activated at the same time as spectrum for binary size reasons (FMRADIO, ALL_REGISTERS...).  
+
+The file `firmware.packed.bin` on the repo should be up to date and match the Makefile options as is.
+
+There are a lot of modifications to do to adapt spectrum in the OneOfEleven custom OEFW so it's not easy to keep the 2 up to date.  
+To make things easier, I rebase my modifications on the OneOfEleven main at each update, basically I do:
+1. take the 1o11 HEAD
+2. overwrite spectrum files with the latest version of Fagci
+3. cherry pick and adapt my glue from previous merge
+
+This is the easiest way I've found to keep things up to date without tons of merging, but it means I rewrite the commit history every time, which has some consequences.
+- if you have cloned this repository, you'll have to hard reset from the remote each time it's updated
+- this repository is probably not a good basis for creating a fork.
+
+Reppad
+
 # Open reimplementation of the Quan Sheng UV-K5 v2.1.27 firmware
 
 This repository is a cloned and customized version of DualTachyon's open firmware found here ..

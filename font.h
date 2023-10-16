@@ -26,7 +26,7 @@ extern const uint8_t     g_font_small[95][6];
 #ifdef ENABLE_SMALL_BOLD
 	extern const uint8_t g_font_small_bold[95][6];
 #endif
-#ifdef ENABLE_SMALLEST_FONT
+#if defined(ENABLE_SMALLEST_FONT) || defined(ENABLE_PANADAPTER)
 	extern const uint8_t g_font3x5[160][3];
 #endif
 

@@ -95,7 +95,7 @@ void BK4819_Init(void)
 		( 8u <<  0));     // AF DAC Gain (after Gain-1 and Gain-2)
 
 	BK4819_sub_audible();
-	
+
 #if 1
 	const uint8_t dtmf_coeffs[] = {111, 107, 103, 98, 80, 71, 58, 44, 65, 55, 37, 23, 228, 203, 181, 159};
 	for (unsigned int i = 0; i < ARRAY_SIZE(dtmf_coeffs); i++)
@@ -585,6 +585,12 @@ void BK4819_EnableVox(uint16_t VoxEnableThreshold, uint16_t VoxDisableThreshold)
 	BK4819_WriteRegister(0x31, REG_31_Value | (1u << 2));    // VOX Enable
 }
 
+const uint16_t listenBWRegValues[3] = {
+		0x3028, // 25
+		0x4048, // 12.5
+		0x205C, // 6.25
+};
+
 void BK4819_set_TX_deviation(const bool narrow)
 {
 	const uint8_t scrambler = (BK4819_ReadRegister(0x31) >> 1) & 1u;
@@ -647,7 +653,7 @@ void BK4819_SetFilterBandwidth(const BK4819_filter_bandwidth_t Bandwidth, const 
 	uint16_t val;
 
 	m_bandwidth = Bandwidth;
-	
+
 	switch (Bandwidth)
 	{
 		default:
@@ -880,6 +886,25 @@ void BK4819_SetAF(BK4819_af_type_t AF)
 	BK4819_WriteRegister(0x47, (1u << 14) | (1u << 13) | ((AF & 15u) << 8) | (1u << 6));
 }
 
+uint16_t BK4819_GetRegValue(RegisterSpec s) {
+    return (BK4819_ReadRegister(s.num) >> s.offset) & s.mask;
+}
+
+void BK4819_SetRegValue(RegisterSpec s, uint16_t v) {
+    uint16_t reg = BK4819_ReadRegister(s.num);
+    reg &= ~(s.mask << s.offset);
+    BK4819_WriteRegister(s.num, reg | (v << s.offset));
+}
+
+void BK4819_SetModulation(ModulationType type) {
+    const uint8_t modTypeReg47Values[] = {1, 7, 5};
+
+    BK4819_SetAF(modTypeReg47Values[type]);
+    BK4819_SetRegValue(afDacGainRegSpec, 0xF);
+    BK4819_WriteRegister(0x3D, type == MOD_USB ? 0 : 0x2AAB);
+    BK4819_SetRegValue(afcDisableRegSpec, type != MOD_FM);
+}
+
 void BK4819_RX_TurnOn(void)
 {
 	// DSP Voltage Setting = 1
@@ -899,7 +924,7 @@ void BK4819_RX_TurnOn(void)
 	BK4819_WriteRegister(0x37, 0x1F0F);  // 0001 1111 0000 1111
 
 	BK4819_WriteRegister(0x30, 0);
-	BK4819_WriteRegister(0x30, 
+	BK4819_WriteRegister(0x30,
 		BK4819_REG_30_ENABLE_VCO_CALIB |
 //		BK4819_REG_30_ENABLE_UNKNOWN   |
 		BK4819_REG_30_ENABLE_RX_LINK   |
@@ -1057,7 +1082,7 @@ void BK4819_StartTone1(const uint16_t frequency, const unsigned int level, const
 {
 	GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_SPEAKER);
 	SYSTEM_DelayMs(2);
-	
+
 //	BK4819_SetAF(BK4819_AF_MUTE);
 	BK4819_SetAF(BK4819_AF_BEEP);
 //	BK4819_SetAF(BK4819_AF_TONE);
@@ -1082,7 +1107,7 @@ void BK4819_StartTone1(const uint16_t frequency, const unsigned int level, const
 //			BK4819_REG_30_ENABLE_RX_DSP    |
 		0);
 	}
-	
+
 	BK4819_WriteRegister(0x71, scale_freq(frequency));
 
 	BK4819_ExitTxMute();
@@ -1105,8 +1130,8 @@ void BK4819_StopTones(const bool tx)
 
 	BK4819_WriteRegister(0x30, 0);
 	if (tx)
-	{		
-		BK4819_WriteRegister(0x30, 
+	{
+		BK4819_WriteRegister(0x30,
 			BK4819_REG_30_ENABLE_VCO_CALIB |
 			BK4819_REG_30_ENABLE_UNKNOWN   |
 //			BK4819_REG_30_ENABLE_RX_LINK   |
@@ -1120,8 +1145,8 @@ void BK4819_StopTones(const bool tx)
 		0);
 	}
 	else
-	{		
-		BK4819_WriteRegister(0x30, 
+	{
+		BK4819_WriteRegister(0x30,
 			BK4819_REG_30_ENABLE_VCO_CALIB |
 //			BK4819_REG_30_ENABLE_UNKNOWN   |
 			BK4819_REG_30_ENABLE_RX_LINK   |
@@ -1195,7 +1220,7 @@ void BK4819_set_mic_gain(unsigned int level)
 {
 	if (level > 31)
 		level = 31;
-	
+
 	// mic gain 0.5dB/step 0 to 31
 	BK4819_WriteRegister(0x7D, 0xE940 | level);
 //	BK4819_WriteRegister(0x19, 0x1041);  // 0001 0000 0100 0001 <15> MIC AGC  1 = disable  0 = enable  .. doesn't work
@@ -1284,7 +1309,7 @@ void BK4819_sub_audible(void)
 	#endif
 
 	BK4819_WriteRegister(0x30, 0);
-	BK4819_WriteRegister(0x30, 
+	BK4819_WriteRegister(0x30,
 		BK4819_REG_30_ENABLE_VCO_CALIB |
 		BK4819_REG_30_ENABLE_UNKNOWN   |
 //		BK4819_REG_30_ENABLE_RX_LINK   |
@@ -1371,7 +1396,7 @@ void BK4819_ExitDTMF_TX(bool bKeep)
 	BK4819_WriteRegister(0x70, 0);
 	BK4819_DisableDTMF();
 
-	BK4819_WriteRegister(0x30, 
+	BK4819_WriteRegister(0x30,
 		BK4819_REG_30_ENABLE_VCO_CALIB |
 		BK4819_REG_30_ENABLE_UNKNOWN   |
 //		BK4819_REG_30_ENABLE_RX_LINK   |
@@ -1390,7 +1415,7 @@ void BK4819_ExitDTMF_TX(bool bKeep)
 
 void BK4819_EnableTXLink(void)
 {
-	BK4819_WriteRegister(0x30, 
+	BK4819_WriteRegister(0x30,
 		BK4819_REG_30_ENABLE_VCO_CALIB |
 		BK4819_REG_30_ENABLE_UNKNOWN   |
 //		BK4819_REG_30_ENABLE_RX_LINK   |
@@ -1546,7 +1571,7 @@ void BK4819_GenTail(const unsigned int tail)
 //	uint16_t ctcss_lost_threshold        = 15;
 	uint16_t ctcss_found_threshold       = 20;
 	uint16_t ctcss_lost_threshold        = 30;
-	
+
 	switch (tail)
 	{
 		case 0: // 134.4Hz CTCSS Tail
@@ -2257,11 +2282,11 @@ void BK4819_reset_fsk(void)
 			{	// packet size .. sync + 14 bytes - size of a single mdc1200 packet
 //				uint16_t size = 1 + (MDC1200_FEC_K * 2);
 				uint16_t size = 0 + (MDC1200_FEC_K * 2);
-//				size -= (fsk_reg59 & (1u << 3)) ? 4 : 2; 
+//				size -= (fsk_reg59 & (1u << 3)) ? 4 : 2;
 				size = ((size + 1) / 2) * 2;             // round up to even, else FSK RX doesn't work
 				BK4819_WriteRegister(0x5D, ((size - 1) << 8));
 			}
-	
+
 			// clear FIFO's then enable RX
 			BK4819_WriteRegister(0x59, (1u << 15) | (1u << 14) | fsk_reg59);
 			BK4819_WriteRegister(0x59, (1u << 12) | fsk_reg59);
@@ -2292,7 +2317,7 @@ void BK4819_reset_fsk(void)
 		//BK4819_ExitTxMute();
 		BK4819_WriteRegister(0x50, 0x3B20);  // 0011 1011 0010 0000
 
-		BK4819_WriteRegister(0x30, 
+		BK4819_WriteRegister(0x30,
 			BK4819_REG_30_ENABLE_VCO_CALIB |
 			BK4819_REG_30_ENABLE_UNKNOWN   |
 //			BK4819_REG_30_ENABLE_RX_LINK   |
@@ -2339,7 +2364,7 @@ void BK4819_reset_fsk(void)
 			//BK4819_WriteRegister(0x40, (3u << 12) | (deviation & 0xfff));
 			BK4819_WriteRegister(0x40, (dev_val & 0xf000) | (deviation & 0xfff));
 		}
-		
+
 		// REG_2B   0
 		//
 		// <10>     0 AF RX HPF 300Hz filter     0 = enable 1 = disable
@@ -2356,7 +2381,7 @@ void BK4819_reset_fsk(void)
 
 		// *******************************************
 		// setup the FFSK modem as best we can for MDC1200
-		
+
 		// MDC1200 uses 1200/1800 Hz FSK tone frequencies 1200 bits/s
 		//
 		BK4819_WriteRegister(0x58, // 0x37C3);   // 001 101 11 11 00 001 1
@@ -2570,7 +2595,7 @@ void BK4819_reset_fsk(void)
 		//BK4819_SetAF(BK4819_AF_MUTE);
 		BK4819_WriteRegister(0x47, (1u << 14) | (1u << 13) | (BK4819_AF_MUTE << 8) | (1u << 6));
 
-		BK4819_WriteRegister(0x30, 
+		BK4819_WriteRegister(0x30,
 			BK4819_REG_30_ENABLE_VCO_CALIB |
 			BK4819_REG_30_ENABLE_UNKNOWN   |
 //			BK4819_REG_30_ENABLE_RX_LINK   |
@@ -2591,7 +2616,7 @@ void BK4819_reset_fsk(void)
 void BK4819_Enable_AfDac_DiscMode_TxDsp(void)
 {
 	BK4819_WriteRegister(0x30, 0);
-	BK4819_WriteRegister(0x30, 
+	BK4819_WriteRegister(0x30,
 //		BK4819_REG_30_ENABLE_VCO_CALIB |
 //		BK4819_REG_30_ENABLE_UNKNOWN   |
 //		BK4819_REG_30_ENABLE_RX_LINK   |
@@ -2625,4 +2650,32 @@ void BK4819_PlayDTMFEx(bool bLocalLoopback, char Code)
 	SYSTEM_DelayMs(50);
 	BK4819_PlayDTMF(Code);
 	BK4819_ExitTxMute();
+}
+
+void BK4819_ToggleAFBit(bool on) {
+    uint16_t reg = BK4819_ReadRegister(0x47U);
+    reg &= ~(1 << 8);
+    if (on)
+        reg |= on << 8;
+    BK4819_WriteRegister(0x47U, reg);
+}
+
+void BK4819_ToggleAFDAC(bool on) {
+    uint32_t Reg = BK4819_ReadRegister(0x30U);
+    Reg &= ~(1 << 9);
+    if (on)
+        Reg |= (1 << 9);
+    BK4819_WriteRegister(0x30U, Reg);
+}
+
+void BK4819_TuneTo(uint32_t f, bool precise) {
+	BK4819_set_rf_filter_path(f);
+	BK4819_set_rf_frequency(f, false);
+	uint16_t reg = BK4819_ReadRegister(0x30U);
+	if (precise) {
+		BK4819_WriteRegister(0x30U, 0);
+	} else {
+		BK4819_WriteRegister(0x30U, reg & ~BK4819_REG_30_ENABLE_VCO_CALIB);
+	}
+	BK4819_WriteRegister(0x30U, reg);
 }

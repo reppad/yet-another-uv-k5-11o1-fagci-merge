@@ -52,6 +52,8 @@ dcs_code_type_t g_current_code_type;
 uint8_t         g_selected_code;
 vfo_state_t     g_vfo_state[2];
 
+const char *modulationTypeOptions[] = {" FM", " AM", "SSB", "RAW"};
+
 bool RADIO_CheckValidChannel(uint16_t Channel, bool bCheckScanList, uint8_t VFO)
 {	// return true if the channel appears valid
 

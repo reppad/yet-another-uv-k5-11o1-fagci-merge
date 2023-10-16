@@ -70,6 +70,15 @@ enum vfo_state_e
 };
 typedef enum vfo_state_e vfo_state_t;
 
+extern const char *modulationTypeOptions[];
+
+typedef enum ModulationType {
+    MOD_FM,
+    MOD_AM,
+    MOD_USB,
+    MOD_RAW,
+} ModulationType;
+
 typedef struct
 {
 	uint32_t        frequency;
@@ -128,6 +137,8 @@ typedef struct vfo_info_t
 	uint8_t        compand;
 
 	uint8_t        freq_in_channel; // channel number if the VFO's frequency is found stored in a channel
+
+    ModulationType ModulationType;
 
 	char           name[16];
 } vfo_info_t;

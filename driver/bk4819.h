@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include "driver/bk4819-regs.h"
+#include "../radio.h"
 
 enum BK4819_af_type_e
 {
@@ -58,6 +59,7 @@ enum BK4819_CSS_scan_result_e
 	BK4819_CSS_RESULT_CDCSS
 };
 typedef enum BK4819_CSS_scan_result_e BK4819_CSS_scan_result_t;
+extern const uint16_t listenBWRegValues[3];
 
 extern bool g_rx_idle_mode;
 
@@ -170,5 +172,12 @@ void     BK4819_Enable_AfDac_DiscMode_TxDsp(void);
 void     BK4819_GetVoxAmp(uint16_t *pResult);
 void     BK4819_SetScrambleFrequencyControlWord(uint32_t Frequency);
 void     BK4819_PlayDTMFEx(bool bLocalLoopback, char Code);
+
+void     BK4819_ToggleAFBit(bool on);
+void     BK4819_ToggleAFDAC(bool on);
+uint16_t BK4819_GetRegValue(RegisterSpec s);
+void     BK4819_SetRegValue(RegisterSpec s, uint16_t v);
+void     BK4819_SetModulation(ModulationType type);
+void     BK4819_TuneTo(uint32_t f, bool precise);
 
 #endif
