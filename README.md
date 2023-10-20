@@ -3,6 +3,8 @@ This repository is a fork of [OneOfEleven custom OEFW](https://github.com/OneOfE
 There are no other additions.
 
 Some options cannot be activated at the same time as spectrum for binary size reasons (FMRADIO, ALL_REGISTERS...).  
+I also removed some UART commands that CHIRP does not use so that the default options produce a binary just below the size limit.
+
 
 The file `firmware.packed.bin` on the repo should be up to date and match the Makefile options as is.
 
