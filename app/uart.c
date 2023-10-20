@@ -115,37 +115,10 @@ typedef struct {
 typedef struct {
 	Header_t Header;
 	struct {
-		uint16_t RSSI;
-		uint8_t  ExNoiseIndicator;
-		uint8_t  GlitchIndicator;
-	} __attribute__((packed)) Data;
-} __attribute__((packed)) reply_0527_t;
-
-typedef struct {
-	Header_t Header;
-	struct {
-		uint16_t Voltage;
-		uint16_t Current;
-	} __attribute__((packed)) Data;
-} __attribute__((packed)) reply_0529_t;
-
-typedef struct {
-	Header_t Header;
-	uint32_t Response[4];
-} __attribute__((packed)) cmd_052D_t;
-
-typedef struct {
-	Header_t Header;
-	struct {
 		uint8_t locked;
 		uint8_t pad[3];
 	} __attribute__((packed)) Data;
 } __attribute__((packed)) reply_052D_t;
-
-typedef struct {
-	Header_t Header;
-	uint32_t time_stamp;
-} __attribute__((packed)) cmd_052F_t;
 
 static union
 {
@@ -221,24 +194,6 @@ static void SendVersion(void)
 
 	SendReply(&reply, sizeof(reply));
 }
-
-#ifdef INCLUDE_AES
-
-static bool IsBadChallenge(const uint32_t *pKey, const uint32_t *pIn, const uint32_t *pResponse)
-{
-	unsigned int i;
-	uint32_t     IV[4] = {0, 0, 0, 0};
-
-	AES_Encrypt(pKey, IV, pIn, IV, true);
-
-	for (i = 0; i < 4; i++)
-		if (IV[i] != pResponse[i])
-			return true;
-
-	return false;
-}
-
-#endif
 
 // version
 static void cmd_0514(const uint8_t *pBuffer)
@@ -378,118 +333,6 @@ static void cmd_051D(const uint8_t *pBuffer)
 	SendReply(&reply, sizeof(reply));
 }
 
-// read RSSI
-static void cmd_0527(void)
-{
-	reply_0527_t reply;
-
-	memset(&reply, 0, sizeof(reply));
-	reply.Header.ID             = 0x0528;
-	reply.Header.Size           = sizeof(reply.Data);
-	reply.Data.RSSI             = BK4819_ReadRegister(0x67) & 0x01FF;
-	reply.Data.ExNoiseIndicator = BK4819_ReadRegister(0x65) & 0x007F;
-	reply.Data.GlitchIndicator  = BK4819_ReadRegister(0x63);
-
-	SendReply(&reply, sizeof(reply));
-}
-
-// read ADC
-static void cmd_0529(void)
-{
-	uint16_t voltage;
-	uint16_t current;
-	reply_0529_t reply;
-	memset(&reply, 0, sizeof(reply));
-	reply.Header.ID   = 0x52A;
-	reply.Header.Size = sizeof(reply.Data);
-	// Original doesn't actually send current!
-	BOARD_ADC_GetBatteryInfo(&voltage, &current);
-	reply.Data.Voltage = voltage;
-	reply.Data.Current = current;
-	SendReply(&reply, sizeof(reply));
-}
-
-#ifdef INCLUDE_AES
-
-static void cmd_052D(const uint8_t *pBuffer)
-{
-	cmd_052D_t  *pCmd   = (cmd_052D_t *)pBuffer;
-	bool         locked = g_has_custom_aes_key;
-	uint32_t     response[4];
-	reply_052D_t reply;
-
-	g_serial_config_tick_500ms = serial_config_tick_500ms;
-
-	if (!locked)
-	{
-		memcpy((void *)&response, &pCmd->Response, sizeof(response));    // overcome strict compiler warning settings
-		locked = IsBadChallenge(g_custom_aes_key, g_challenge, response);
-	}
-
-	if (!locked)
-	{
-		memcpy((void *)&response, &pCmd->Response, sizeof(response));    // overcome strict compiler warning settings
-		locked = IsBadChallenge(g_default_aes_key, g_challenge, response);
-		if (locked)
-			try_count++;
-	}
-
-	if (try_count < 3)
-	{
-		if (!locked)
-			try_count = 0;
-	}
-	else
-	{
-		try_count = 3;
-		locked    = true;
-	}
-
-	is_locked = locked;
-
-	memset(&reply, 0, sizeof(reply));
-	reply.Header.ID   = 0x052E;
-	reply.Header.Size = sizeof(reply.Data);
-	reply.Data.locked = is_locked;
-
-	SendReply(&reply, sizeof(reply));
-}
-
-#endif
-
-static void cmd_052F(const uint8_t *pBuffer)
-{
-	const cmd_052F_t *pCmd = (const cmd_052F_t *)pBuffer;
-
-	g_eeprom.dual_watch                       = DUAL_WATCH_OFF;
-	g_eeprom.cross_vfo_rx_tx                  = CROSS_BAND_OFF;
-	g_eeprom.rx_vfo                           = 0;
-	g_eeprom.dtmf_side_tone                   = false;
-	g_eeprom.vfo_info[0].frequency_reverse    = false;
-	g_eeprom.vfo_info[0].p_rx                  = &g_eeprom.vfo_info[0].freq_config_rx;
-	g_eeprom.vfo_info[0].p_tx                  = &g_eeprom.vfo_info[0].freq_config_tx;
-	g_eeprom.vfo_info[0].tx_offset_freq_dir   = TX_OFFSET_FREQ_DIR_OFF;
-	g_eeprom.vfo_info[0].dtmf_ptt_id_tx_mode  = PTT_ID_OFF;
-	g_eeprom.vfo_info[0].dtmf_decoding_enable = false;
-
-	g_serial_config_tick_500ms = serial_config_tick_500ms;
-
-	#ifdef ENABLE_NOAA
-		g_is_noaa_mode = false;
-	#endif
-
-	if (g_current_function == FUNCTION_POWER_SAVE)
-		FUNCTION_Select(FUNCTION_FOREGROUND);
-
-	time_stamp = pCmd->time_stamp;
-
-	// show message
-	g_request_display_screen = DISPLAY_MAIN;
-	g_update_display = true;
-
-	SendVersion();
-}
-
 bool UART_IsCommandAvailable(void)
 {
 	uint16_t Index;
@@ -603,24 +446,6 @@ void UART_HandleCommand(void)
 			break;
 
 		case 0x0521:	// Not implementing non-authentic command
-			break;
-
-		case 0x0527:    // read RSSI
-			cmd_0527();
-			break;
-
-		case 0x0529:    // read ADC
-			cmd_0529();
-			break;
-			
-#ifdef INCLUDE_AES
-		case 0x052D:    //
-			cmd_052D(UART_Command.Buffer);
-			break;
-#endif
-
-		case 0x052F:    //
-			cmd_052F(UART_Command.Buffer);
 			break;
 
 		case 0x05DD:    // reboot
