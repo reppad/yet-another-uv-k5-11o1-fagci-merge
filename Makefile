@@ -46,7 +46,7 @@ ENABLE_WIDE_RX                   := 1
 ENABLE_TX_WHEN_AM                := 0
 # Freq calibration 0.188 kB
 ENABLE_F_CAL_MENU                := 0
-ENABLE_TX_UNLOCK                 := 1
+ENABLE_TX_UNLOCK                 := 0
 ENABLE_CTCSS_TAIL_PHASE_SHIFT    := 0
 ENABLE_CONTRAST                  := 1
 ENABLE_BOOT_BEEPS                := 0

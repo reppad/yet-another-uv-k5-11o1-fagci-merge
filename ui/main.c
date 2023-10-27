@@ -235,29 +235,31 @@ void UI_drawBars(uint8_t *p, const unsigned int level)
 	{
 		if (g_setting_rssi_bar)
 		{
-//			const int16_t      s0_dBm       = -127;                  // S0 .. base level
 			const int16_t      s0_dBm       = -147;                  // S0 .. base level
-
-			const int16_t      s9_dBm       = s0_dBm + (6 * 9);      // S9 .. 6dB/S-Point
-			const int16_t      bar_max_dBm  = s9_dBm + 30;           // S9+30dB
-//			const int16_t      bar_min_dBm  = s0_dBm + (6 * 0);      // S0
-			const int16_t      bar_min_dBm  = s0_dBm + (6 * 4);      // S4
-
-			// ************
-
 			const unsigned int txt_width    = 7 * 8;                 // 8 text chars
 			const unsigned int bar_x        = 2 + txt_width + 4;     // X coord of bar graph
-			const unsigned int bar_width    = LCD_WIDTH - 1 - bar_x;
-
 			const int16_t      rssi_dBm     = (rssi / 2) - 160;
-			const int16_t      clamped_dBm  = (rssi_dBm <= bar_min_dBm) ? bar_min_dBm : (rssi_dBm >= bar_max_dBm) ? bar_max_dBm : rssi_dBm;
-			const unsigned int bar_range_dB = bar_max_dBm - bar_min_dBm;
-			const unsigned int len          = ((clamped_dBm - bar_min_dBm) * bar_width) / bar_range_dB;
 
 			const unsigned int line         = 3;
 			uint8_t           *p_line        = g_frame_buffer[line];
+			char               str[16];
 
-			char               s[16];
+			const char plus[] = {
+				0b00011000,
+				0b00011000,
+				0b01111110,
+				0b01111110,
+				0b01111110,
+				0b00011000,
+				0b00011000,
+			};
+
+			const char hollowBar[] = {
+				0b01111111,
+				0b01000001,
+				0b01000001,
+				0b01111111
+			};
 
 			#ifdef ENABLE_KEYLOCK
 			if (g_eeprom.key_lock && g_keypad_locked > 0)
@@ -272,20 +274,28 @@ void UI_drawBars(uint8_t *p, const unsigned int level)
 			if (now)
 				memset(p_line, 0, LCD_WIDTH);
 
-			if (rssi_dBm >= (s9_dBm + 6))
-			{	// S9+XXdB, 1dB increment
-				const char *fmt[] = {"%3d 9+%u  ", "%3d 9+%2u "};
-				const unsigned int s9_dB = ((rssi_dBm - s9_dBm) <= 99) ? rssi_dBm - s9_dBm : 99;
-				sprintf(s, (s9_dB < 10) ? fmt[0] : fmt[1], rssi_dBm, s9_dB);
-			}
-			else
-			{	// S0 ~ S9, 6dB per S-point
-				const unsigned int s_level = (rssi_dBm >= s0_dBm) ? (rssi_dBm - s0_dBm) / 6 : 0;
-				sprintf(s, "%4d S%u ", rssi_dBm, s_level);
-			}
-			UI_PrintStringSmall(s, 2, 0, line);
+			const uint8_t s_level = MIN(MAX((rssi_dBm - s0_dBm) / 6, 0), 9);
+			uint8_t overS9dBm = MIN(MAX(73 + rssi_dBm, 0), 99);
+			uint8_t overS9Bars = MIN(overS9dBm/10, 4);
 
-			draw_bar(p_line + bar_x, len, bar_width);
+			if(overS9Bars == 0) {
+				sprintf(str, "% 4d S%d", rssi_dBm, s_level);
+				UI_PrintStringSmall(str, 2, 0, line);
+			}
+			else {
+				sprintf(str, "% 4d  %2d", rssi_dBm, overS9dBm);
+				UI_PrintStringSmall(str, 2, 0, line);
+				memcpy(p_line + 2 + 7*5, &plus, ARRAY_SIZE(plus));
+			}
+
+			for(uint8_t i = 0; i < s_level; i++) { // S bars
+				for(uint8_t j = 0; j < 4; j++)
+					p_line[bar_x + i * 5 + j] = (~(0x7F >> (i+1))) & 0x7F;
+			}
+			overS9Bars = MIN(overS9Bars, 4);
+			for(uint8_t i = 0; i < overS9Bars; i++) { // +10 hollow bars
+				memcpy(p_line + (bar_x + (i + 9) * 5), &hollowBar, ARRAY_SIZE(hollowBar));
+			}
 
 			if (now)
 				ST7565_BlitFullScreen();
@@ -717,7 +727,7 @@ void UI_DisplayMain(void)
 						}
 						else
 						{	// name & frequency
-							
+
 							// name
 							#ifdef ENABLE_SMALL_BOLD
 								UI_PrintStringSmallBold(str, x + 4, 0, line);
@@ -856,7 +866,7 @@ void UI_DisplayMain(void)
 				str[0] = (i < ARRAY_SIZE(pwr_list)) ? pwr_list[i] : '\0';
 				str[1] = '\0';
 				UI_PrintStringSmall(str, LCD_WIDTH + 46, 0, line + 1);
-		
+
 				if (g_eeprom.vfo_info[vfo_num].freq_config_rx.frequency != g_eeprom.vfo_info[vfo_num].freq_config_tx.frequency)
 				{	// show the TX offset symbol
 					const char dir_list[] = "\0+-";
@@ -867,7 +877,7 @@ void UI_DisplayMain(void)
 				}
 			}
 		}
-		
+
 		// show the TX/RX reverse symbol
 		if (g_eeprom.vfo_info[vfo_num].frequency_reverse)
 			UI_PrintStringSmall("R", LCD_WIDTH + 62, 0, line + 1);
