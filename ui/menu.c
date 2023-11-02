@@ -496,37 +496,23 @@ void UI_DisplayMenu(void)
 	{	// new menu layout .. experimental & unfinished
 
 		const int menu_index = g_menu_cursor;  // current selected menu item
-		i = 1;
 
 		if (!g_in_sub_menu)
 		{
-			while (i < 2)
-			{	// leading menu items - small text
-				const int k = menu_index + i - 2;
-				if (k < 0)
-					UI_PrintStringSmall(g_menu_list[g_menu_list_sorted[g_menu_list_count + k]].name, 0, 0, i);  // wrap-a-round
-				else
-				if (k >= 0 && k < (int)g_menu_list_count)
-					UI_PrintStringSmall(g_menu_list[g_menu_list_sorted[k]].name, 0, 0, i);
-				i++;
-			}
+                        int start = menu_index - 2;
 
-			// current menu item - keep big n fat
-			if (menu_index >= 0 && menu_index < (int)g_menu_list_count)
-				UI_PrintString(g_menu_list[g_menu_list_sorted[menu_index]].name, 0, 0, 2, 8);
-			i++;
+                        int line_offset = 1;
+                        for(int i = 0; i < 3; i++) {
+                            start = NUMBER_AddWithWraparound(start, 1, 0, g_menu_list_count - 1);
 
-			while (i < 4)
-			{	// trailing menu item - small text
-				const int k = menu_index + i - 2;
-				if (k >= 0 && k < (int)g_menu_list_count)
-					UI_PrintStringSmall(g_menu_list[g_menu_list_sorted[k]].name, 0, 0, 1 + i);
-				else
-				if (k >= (int)g_menu_list_count)
-					UI_PrintStringSmall(g_menu_list[g_menu_list_sorted[g_menu_list_count - k]].name, 0, 0, 1 + i);  // wrap-a-round
-				i++;
-			}
-
+                            if (i == 1) {
+                                // current menu item - keep big n fat
+				UI_PrintString(g_menu_list[g_menu_list_sorted[start]].name, 0, 0, i + line_offset, 8);
+                                // big n fat requires two lines
+                                line_offset++;
+                            } else
+                            UI_PrintStringSmall(g_menu_list[g_menu_list_sorted[start]].name, 0, 0, i + line_offset);
+                        }
 			// draw the menu index number/count
 			sprintf(str, "%2u.%u", 1 + g_menu_cursor, g_menu_list_count);
 			UI_PrintStringSmall(str, 2, 0, 6);
