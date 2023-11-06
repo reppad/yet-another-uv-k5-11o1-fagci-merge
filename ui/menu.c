@@ -1216,12 +1216,14 @@ void UI_DisplayMenu(void)
 				y = 2 - ((lines + 0) / 2);
 
 			// draw the text lines
-			for (i = 0; i < len && lines > 0; lines--)
+			for (i = 0; i < len && lines > 0; lines--, y++)
 			{
 				if (small)
 					UI_PrintStringSmall(str + i, sub_menu_x1, sub_menu_x2, y);
-				else
+				else {
 					UI_PrintString(str + i, sub_menu_x1, sub_menu_x2, y, 8);
+                                        y++;
+                                }
 
 				// look for start of next line
 				while (i < len && str[i] >= 32)
@@ -1230,8 +1232,6 @@ void UI_DisplayMenu(void)
 				// hop over the null term char(s)
 				while (i < len && str[i] < 32)
 					i++;
-
-				y += small ? 1 : 2;
 			}
 		}
 	}
