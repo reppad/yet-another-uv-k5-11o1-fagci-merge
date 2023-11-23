@@ -235,10 +235,9 @@ void UI_drawBars(uint8_t *p, const unsigned int level)
 	{
 		if (g_setting_rssi_bar)
 		{
-			const int16_t      s0_dBm       = -147;                  // S0 .. base level
+			const int16_t      s0_dBm       = -130;                  // S0 .. base level
 			const unsigned int txt_width    = 7 * 8;                 // 8 text chars
 			const unsigned int bar_x        = 2 + txt_width + 4;     // X coord of bar graph
-			const int16_t      rssi_dBm     = (rssi / 2) - 160;
 
 			const unsigned int line         = 3;
 			uint8_t           *p_line        = g_frame_buffer[line];
@@ -274,8 +273,20 @@ void UI_drawBars(uint8_t *p, const unsigned int level)
 			if (now)
 				memset(p_line, 0, LCD_WIDTH);
 
-			const uint8_t s_level = MIN(MAX((rssi_dBm - s0_dBm) / 6, 0), 9);
-			uint8_t overS9dBm = MIN(MAX(73 + rssi_dBm, 0), 99);
+			const int8_t dBmCorrTable[7] = {
+				-15, // band 1
+				-25, // band 2
+				-20, // band 3
+				-4,  // band 4
+				-7,  // band 5
+				-6,  // band 6
+				-1   // band 7
+			};
+
+			const int16_t rssi_dBm = (rssi / 2) - 160 + dBmCorrTable[g_rx_vfo->band];
+
+			const uint8_t s_level = MIN(MAX((rssi_dBm - s0_dBm) / 6, 0), 9); // S0 - S9
+			uint8_t overS9dBm = MIN(MAX(rssi_dBm - (s0_dBm + 9*6), 0), 99);
 			uint8_t overS9Bars = MIN(overS9dBm/10, 4);
 
 			if(overS9Bars == 0) {
@@ -288,13 +299,15 @@ void UI_drawBars(uint8_t *p, const unsigned int level)
 				memcpy(p_line + 2 + 7*5, &plus, ARRAY_SIZE(plus));
 			}
 
-			for(uint8_t i = 0; i < s_level; i++) { // S bars
-				for(uint8_t j = 0; j < 4; j++)
-					p_line[bar_x + i * 5 + j] = (~(0x7F >> (i+1))) & 0x7F;
-			}
-			overS9Bars = MIN(overS9Bars, 4);
-			for(uint8_t i = 0; i < overS9Bars; i++) { // +10 hollow bars
-				memcpy(p_line + (bar_x + (i + 9) * 5), &hollowBar, ARRAY_SIZE(hollowBar));
+			uint8_t level = MIN(s_level + overS9Bars, 13);
+
+			for(uint8_t i = 0; i < level; i++) {
+				if(i < 9) {
+					for(uint8_t j = 0; j < 4; j++)
+						p_line[bar_x + i * 5 + j] = (~(0x7F >> (i+1))) & 0x7F;
+				} else {
+					memcpy(p_line + (bar_x + i * 5), &hollowBar, ARRAY_SIZE(hollowBar));
+				}
 			}
 
 			if (now)
